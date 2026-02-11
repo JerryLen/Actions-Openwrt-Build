@@ -16,13 +16,13 @@ permissions: write-all
 on:
   workflow_dispatch:
     inputs:
-      # repo_url:
-      #   description: '源代码仓库URL'
-      #   default: 'https://github.com/padavanonly/immortalwrt-mt798x-6.6'
-      # repo_branch:
-      #   description: '源代码仓库分支'
-      #   default: 'openwrt-24.10-6.6'
-      enable_5g_25db:
+      repo_url:
+        description: '源代码仓库URL'
+        default: 'https://github.com/padavanonly/immortalwrt-mt798x-6.6'
+      repo_branch:
+        description: '源代码仓库分支'
+        default: 'openwrt-24.10-6.6'
+      ENABLE_5G_25DB:
         description: '启用5G 25dB修改'
         type: boolean
         required: true
@@ -42,15 +42,15 @@ on:
     - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
 
 env:
-  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
-  REPO_BRANCH: openwrt-24.10-6.6
+  REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/padavanonly/immortalwrt-mt798x-6.6' }}
+  REPO_BRANCH: ${{ github.event.inputs.repo_branch || 'openwrt-24.10-6.6' }}
   FREE_DISK_SH: scripts/free_disk_space.sh
   ENV_SH: scripts/environment.sh
   DIY_P1_SH: scripts/diy-part1.sh
   DIY_P2_SH: scripts/diy-part2.sh
   CONFIG_FILE: configs/xr30-emmc-padavanonly-24.10-6.6.config
   UPLOAD_BIN_DIR: false
-  UPLOAD_FIRMWARE: false
+  UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
 

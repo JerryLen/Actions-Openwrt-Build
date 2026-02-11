@@ -22,17 +22,17 @@ on:
       repo_branch:
         description: '源代码仓库分支'
         default: 'openwrt-24.10-6.6'
-      ENABLE_5G_25DB:
+      enable_5g_25db:
         description: '启用5G 25dB修改'
         type: boolean
         required: true
         default: true
-      USE_XR30_LED_DTS:
+      use_xr30_led_dts:
         description: 'Use xr30 led dts'
         required: true
         default: false
         type: boolean
-      USE_26MHZ:
+      use_26mhz:
         description: 'Use 26MHz max-frequency'
         required: true
         default: false
@@ -53,6 +53,11 @@ env:
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
   TZ: Asia/Shanghai
+  DEVICE_CODE: cmcc_rax3000m-emmc
+  DEVICE_NAME: RAX3000M-eMMC
+  ENABLE_5G_25DB: ${{ github.event.inputs.enable_5g_25db || true }}
+  USE_XR30_LED_DTS: ${{ github.event.inputs.use_xr30_led_dts || false }}
+  USE_26MHZ: ${{ github.event.inputs.use_26mhz || false }}
 
 jobs:
   build:
@@ -61,6 +66,12 @@ jobs:
     steps:
     - name: 检查
       uses: actions/checkout@main
+
+    - name: 打印调试信息
+      run: |
+        echo "5G 25dB：${{ env.ENABLE_5G_25DB }}"
+        echo "USE_XR30_LED_DTS：${{ env.USE_XR30_LED_DTS }}"
+        echo "USE_26MHZ：${{ env.USE_26MHZ }}"
 
     - name: 初始化环境
       env:
@@ -82,9 +93,9 @@ jobs:
     - name: 克隆源码
       working-directory: /workdir
       run: |
-        git clone $REPO_URL -b $REPO_BRANCH openwrt 
         git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
         git config --global user.name "github-actions[bot]"
+        git clone $REPO_URL -b $REPO_BRANCH openwrt 
         ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
 
 
@@ -167,6 +178,16 @@ jobs:
       run: df -hT
 
 
+    - if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: compile-log-${{ env.DEVICE_CODE }}
+        path: |
+          openwrt/build_dir/**/*
+          openwrt/logs/**/*
+          openwrt/*.log
+        if-no-files-found: ignore
+
     - name: 提取版本号
       id: version
       if: steps.compile.outputs.status == 'success'
@@ -189,7 +210,7 @@ jobs:
           [ -f "$file" ] && ! echo "$file" | grep -q "-bl2" && {
             TYPE=$(echo "$file" | grep -o "sysupgrade\|factory")
             EXT="${file##*.}"
-            mv "$file" "${{ env.device_code }}_25dB-on_${{ env.FIRMWARE_VERSION }}_${TYPE}.${EXT}"
+            mv "$file" "${{ env.DEVICE_CODE }}_25dB-on_${{ env.FIRMWARE_VERSION }}_${TYPE}.${EXT}"
           }
         done
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
@@ -210,7 +231,7 @@ jobs:
         cat << EOF > README.md
         # ImmortalWrt 固件说明
         - **固件版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
-        - **设备型号**: ${{ env.device_code }}
+        - **设备型号**: ${{ env.DEVICE_CODE }}
         - **构建时间**: $(date +"%Y-%m-%d %H:%M %Z")
         - **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用 (5G 25dB)' || '未启用' }}
         - **来源**: ${{ env.REPO_URL }} (分支: ${{ env.REPO_BRANCH }})
@@ -230,11 +251,11 @@ jobs:
       if: env.UPLOAD_RELEASE == 'true' && steps.version.outputs.status == 'success'
       run: |
         set -e
-        echo "RELEASE_TAG=ImmortalWrt-24.10-${{ env.device_code }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
+        echo "RELEASE_TAG=ImmortalWrt-24.10-${{ env.DEVICE_CODE }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
         cat << EOF > release.txt
         # ImmortalWrt 固件发布
         - **版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
-        - **型号**: ${{ env.device_code }}
+        - **型号**: ${{ env.DEVICE_CODE }}
         - **时间**: $(date +"%Y-%m-%d %H:%M %Z")
         - **5G**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
         ## 特性

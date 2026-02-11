@@ -23,17 +23,17 @@ on:
         description: '源代码仓库分支'
         default: 'openwrt-24.10-6.6'
       enable_5g_25db:
-        description: '启用5G 25dB修改'
+        description: '启用5G 25dB高功率'
         type: boolean
         required: true
         default: true
-      use_xr30_led_dts:
-        description: 'Use xr30 led dts'
+      USE_XR30_LED:
+        description: '使用 xr30 LED'
         required: true
         default: false
         type: boolean
       use_26mhz:
-        description: 'Use 26MHz max-frequency'
+        description: '设置 26MHz 闪存频率'
         required: true
         default: false
         type: boolean
@@ -55,7 +55,7 @@ env:
   TZ: Asia/Shanghai
   DEVICE_CODE: cmcc_rax3000m-emmc
   ENABLE_5G_25DB: ${{ github.event.inputs.enable_5g_25db || true }}
-  USE_XR30_LED_DTS: ${{ github.event.inputs.use_xr30_led_dts || false }}
+  USE_XR30_LED: ${{ github.event.inputs.USE_XR30_LED || false }}
   USE_26MHZ: ${{ github.event.inputs.use_26mhz || false }}
 
 jobs:
@@ -69,7 +69,7 @@ jobs:
     - name: 打印调试信息
       run: |
         echo "5G 25dB：${{ env.ENABLE_5G_25DB }}"
-        echo "USE_XR30_LED_DTS：${{ env.USE_XR30_LED_DTS }}"
+        echo "USE_XR30_LED：${{ env.USE_XR30_LED }}"
         echo "USE_26MHZ：${{ env.USE_26MHZ }}"
 
     - name: 初始化环境
@@ -140,16 +140,16 @@ jobs:
         [ "$CURRENT_CONTENT" != "$EXPECTED_CONTENT" ] && printf '\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B' | dd of="$EEPROM_FILE" bs=1 seek=$((0x445)) conv=notrunc
 
 
-    # - name: 设置是否使用 xr30 led dts
-    #   if: env.USE_XR30_LED_DTS == 'true'
+    # - name: 使用 xr30 LED
+    #   if: env.USE_XR30_LED == 'true'
     #   run: |
     #     cp dst/mt7981-cmcc-xr30-emmc.dtsi openwrt/target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7981-cmcc-rax3000m.dtsi
 
 
-    - name: 设置 dts 闪存频率
+    - name: 设置 26MHz 闪存频率
       if: env.USE_26MHZ == 'true'
       run: |
-        sed -i -e '/bus-width = <8>;/ a\	cap-mmc-highspeed;' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
+        sed -i 's/cap-mmc-highspeed;//g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
         sed -i 's/52000000/26000000/g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
         grep max-frequency openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
 
@@ -227,6 +227,8 @@ jobs:
         - **设备型号**: ${{ env.DEVICE_CODE }}
         - **构建时间**: $(date +"%Y-%m-%d %H:%M %Z")
         - **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用 (5G 25dB)' || '未启用' }}
+        - **使用 XR30 LED**: ${{ env.USE_XR30_LED == 'true' && '已启用' || '未启用' }}
+        - **闪存频率**: ${{ env.USE_26MHZ == 'true' && '26MHz' || '52MHz' }}
         - **来源**: ${{ env.REPO_URL }} (分支: ${{ env.REPO_BRANCH }})
         ## 功能
         - 优化网络性能，支持USB共享、HNAT加速、Ksmbd共享等。
@@ -250,7 +252,9 @@ jobs:
         - **版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
         - **型号**: ${{ env.DEVICE_CODE }}
         - **时间**: $(date +"%Y-%m-%d %H:%M %Z")
-        - **5G**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
+        - **5G 高功率**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
+        - **使用 XR30 LED**: ${{ env.USE_XR30_LED == 'true' && '已启用' || '未启用' }}
+        - **闪存频率**: ${{ env.USE_26MHZ == 'true' && '26MHz' || '52MHz' }}
         ## 特性
         - 优化性能，支持USB/HNAT/Ksmbd。
         ${{ env.ENABLE_5G_25DB == 'true' && '- 5G 25dB 高功率。' || '' }}
@@ -272,7 +276,7 @@ jobs:
           ${{ env.FIRMWARE }}/*sysupgrade*.*
           ${{ env.FIRMWARE }}/*factory*.*
           ${{ env.FIRMWARE }}/README.md    
-        overwrite: true
+       
 
 
     - name: 清理旧发布

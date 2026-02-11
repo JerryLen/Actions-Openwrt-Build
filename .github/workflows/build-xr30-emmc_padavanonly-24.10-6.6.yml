@@ -211,7 +211,7 @@ jobs:
           [ -f "$file" ] && ! echo "$file" | grep -q "-bl2" && {
             TYPE=$(echo "$file" | grep -o "sysupgrade\|factory")
             EXT="${file##*.}"
-            mv "$file" "${{ env.DEVICE_CODE }}_25dB-on_${{ env.FIRMWARE_VERSION }}_${TYPE}.${EXT}"
+            mv "$file" "${{ env.DEVICE_CODE }}-on_${{ env.FIRMWARE_VERSION }}_${TYPE}.${EXT}"
           }
         done
         echo "FIRMWARE=$PWD" >> $GITHUB_ENV
@@ -239,7 +239,7 @@ jobs:
         - 备份配置，使用sysupgrade保留配置，factory全新安装。
         - 通过Web上传.bin文件，重启。
         ## 注意
-        第三方固件，自行风险。支持: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+        第三方固件，自行风险。支持: https://github.com/padavanonly/immortalwrt-mt798x-6.6
         EOF
 
     - name: 生成发布描述
@@ -262,7 +262,7 @@ jobs:
         - 地址: 192.168.10.1 (空密码)
         ## 安装
         备份 > 上传sysupgrade/factory > 重启。
-        详情见README.md。仓库: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+        详情见README.md。仓库: https://github.com/padavanonly/immortalwrt-mt798x-6.6
         EOF
         echo "status=success" >> $GITHUB_OUTPUT
 

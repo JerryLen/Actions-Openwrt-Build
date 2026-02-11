@@ -1,0 +1,280 @@
+#
+# Copyright (c) 2019-2020 P3TERX <https://p3terx.com>
+#
+# This is free software, licensed under the MIT License.
+# See /LICENSE for more information.
+#
+# https://github.com/P3TERX/Actions-OpenWrt
+# Description: Build OpenWrt using GitHub Actions
+#
+
+name: Build xr30-emmc_padavanonly-24.10-6.6
+
+permissions: write-all
+# 开启写权限，防止无法上传到release
+
+on:
+  workflow_dispatch:
+    inputs:
+      # repo_url:
+      #   description: '源代码仓库URL'
+      #   default: 'https://github.com/padavanonly/immortalwrt-mt798x-6.6'
+      # repo_branch:
+      #   description: '源代码仓库分支'
+      #   default: 'openwrt-24.10-6.6'
+      enable_5g_25db:
+        description: '启用5G 25dB修改'
+        type: boolean
+        required: true
+        default: true
+      USE_XR30_LED_DTS:
+        description: 'Use xr30 led dts'
+        required: true
+        default: false
+        type: boolean
+      USE_26MHZ:
+        description: 'Use 26MHz max-frequency'
+        required: true
+        default: false
+        type: boolean
+
+  schedule:
+    - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
+
+env:
+  REPO_URL: https://github.com/padavanonly/immortalwrt-mt798x-6.6
+  REPO_BRANCH: openwrt-24.10-6.6
+  FREE_DISK_SH: scripts/free_disk_space.sh
+  ENV_SH: scripts/environment.sh
+  DIY_P1_SH: scripts/diy-part1.sh
+  DIY_P2_SH: scripts/diy-part2.sh
+  CONFIG_FILE: configs/xr30-emmc-padavanonly-24.10-6.6.config
+  UPLOAD_BIN_DIR: false
+  UPLOAD_FIRMWARE: false
+  UPLOAD_RELEASE: true
+  TZ: Asia/Shanghai
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: 检查
+      uses: actions/checkout@main
+
+    - name: 初始化环境
+      env:
+        DEBIAN_FRONTEND: noninteractive
+      run: |
+        chmod +x $FREE_DISK_SH && $FREE_DISK_SH
+        sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+        sudo -E apt-get -qq update -y
+        sudo -E apt-get -qq full-upgrade -y
+        chmod +x $ENV_SH && $ENV_SH
+        sudo timedatectl set-timezone "$TZ"
+        sudo mkdir -p /workdir
+        sudo chown $USER:$GROUPS /workdir
+
+    - name: 检查空间使用情况
+      if: (!cancelled())
+      run: df -hT
+
+    - name: 克隆源码
+      working-directory: /workdir
+      run: |
+        git clone $REPO_URL -b $REPO_BRANCH openwrt 
+        git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+        git config --global user.name "github-actions[bot]"
+        ln -sf /workdir/openwrt $GITHUB_WORKSPACE/openwrt
+
+
+    - name: 更新 & 安装 feeds & 执行脚本
+      run: |
+        tree -L 3
+        cd openwrt
+
+        chmod +x $GITHUB_WORKSPACE/$DIY_P1_SH && $GITHUB_WORKSPACE/$DIY_P1_SH
+        ./scripts/feeds update -a && ./scripts/feeds install -af   
+        chmod +x $GITHUB_WORKSPACE/$DIY_P2_SH && $GITHUB_WORKSPACE/$DIY_P2_SH
+        
+
+    - name: 导入配置
+      run: |
+        [ -e files ] && mv files openwrt/files
+        [ -e $CONFIG_FILE ] && mv $CONFIG_FILE openwrt/.config
+
+        tree -L 3
+        cd openwrt
+        
+        echo "====================配置文件===================="
+        cat  .config
+        echo "================================================"
+
+
+    - name: 导入补丁
+      run: |
+        # 修复rust预编译失效
+        # sed -i 's/--set=llvm\.download-ci-llvm=true/--set=llvm.download-ci-llvm=false/' feeds/packages/lang/rust/Makefile
+        cp custom-files/libxcrypt-Makefile openwrt/feeds/packages/libs/libxcrypt/Makefile
+        echo "✅ Custom Makefile applied!"
+        ls -l openwrt/feeds/packages/libs/libxcrypt/Makefile
+
+    - name: 修改5G 25dB
+      if: env.ENABLE_5G_25DB == 'true'
+      working-directory: ./openwrt
+      run: |
+        EEPROM_FILE=package/mtk/drivers/mt_wifi/files/mt7981-default-eeprom/MT7981_iPAiLNA_EEPROM.bin
+        EXPECTED_CONTENT=$(printf '\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B')
+        mkdir -p "$(dirname "$EEPROM_FILE")" && touch "$EEPROM_FILE" && chmod 644 "$EEPROM_FILE"
+        CURRENT_CONTENT=$(dd if="$EEPROM_FILE" bs=1 skip=$((0x445)) count=20 2>/dev/null || echo "")
+        [ "$CURRENT_CONTENT" != "$EXPECTED_CONTENT" ] && printf '\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B\x2B' | dd of="$EEPROM_FILE" bs=1 seek=$((0x445)) conv=notrunc
+
+
+    # - name: 设置是否使用 xr30 led dts
+    #   if: env.USE_XR30_LED_DTS == 'true'
+    #   run: |
+    #     cp dst/mt7981-cmcc-xr30-emmc.dtsi openwrt/target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7981-cmcc-rax3000m.dtsi
+
+
+    - name: 设置 dts 闪存频率
+      if: env.USE_26MHZ == 'true'
+      run: |
+        sed -i -e '/bus-width = <8>;/ a\	cap-mmc-highspeed;' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
+        sed -i 's/52000000/26000000/g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
+        grep max-frequency openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
+
+
+    - name: 下载文件
+      run: |
+        cd openwrt
+        make defconfig
+        make download -j8 V=10
+        find dl -size -1024c -exec ls -l {} \;
+        find dl -size -1024c -exec rm -f {} \;
+
+
+    - name: 编译固件中
+      id: compile
+      run: |
+        cd openwrt
+        echo -e "$(($(nproc)+1)) thread compile"
+        make -j$(($(nproc)+1)) || make -j$(nproc) || make -j1 V=s
+        echo "status=success" >> $GITHUB_OUTPUT
+
+
+    - name: 空间使用情况
+      if: (!cancelled())
+      run: df -hT
+
+
+    - name: 提取版本号
+      id: version
+      if: steps.compile.outputs.status == 'success'
+      run: |
+        cd openwrt
+        VERSION=$(find ./build_dir -name "os-release" | head -1 | xargs grep '^VERSION=' | cut -d= -f2 | tr -d '"[:space:]' | grep -oE "r[0-9]+" || \
+                  find ./bin/targets -name "build.version" | head -1 | xargs cat | tr -d '[:space:]' | grep -oE "r[0-9]+" || \
+                  git describe --tags --abbrev=0 2>/dev/null | grep -oE "r[0-9]+" || echo "commit-$(git rev-parse --short HEAD)")
+        echo "FIRMWARE_VERSION=$VERSION" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 整理固件
+      id: organize
+      if: env.UPLOAD_FIRMWARE == 'true' && steps.version.outputs.status == 'success'
+      run: |
+        set -e
+        cd openwrt/bin/targets/*/*
+        rm -rf packages
+        for file in *sysupgrade* *factory*; do
+          [ -f "$file" ] && ! echo "$file" | grep -q "-bl2" && {
+            TYPE=$(echo "$file" | grep -o "sysupgrade\|factory")
+            EXT="${file##*.}"
+            mv "$file" "${{ env.device_code }}_25dB-on_${{ env.FIRMWARE_VERSION }}_${TYPE}.${EXT}"
+          }
+        done
+        echo "FIRMWARE=$PWD" >> $GITHUB_ENV
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传固件目录
+      uses: actions/upload-artifact@main
+      if: env.UPLOAD_FIRMWARE == 'true' && steps.organize.outputs.status == 'success' && !cancelled()
+      with:
+        name: OpenWrt_firmware${{ env.DEVICE_NAME }}${{ env.FILE_DATE }}
+        path: ${{ env.FIRMWARE }}
+
+    - name: 生成README
+      if: steps.version.outputs.status == 'success'
+      run: |
+        set -e
+        cd openwrt/bin/targets/*/*
+        cat << EOF > README.md
+        # ImmortalWrt 固件说明
+        - **固件版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
+        - **设备型号**: ${{ env.device_code }}
+        - **构建时间**: $(date +"%Y-%m-%d %H:%M %Z")
+        - **高功率模式**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用 (5G 25dB)' || '未启用' }}
+        - **来源**: ${{ env.REPO_URL }} (分支: ${{ env.REPO_BRANCH }})
+        ## 功能
+        - 优化网络性能，支持USB共享、HNAT加速、Ksmbd共享等。
+        ${{ env.ENABLE_5G_25DB == 'true' && '- 支持 5G 25dB 高功率。' || '' }}
+        - 默认地址: 192.168.10.1 (密码空)
+        ## 安装
+        - 备份配置，使用sysupgrade保留配置，factory全新安装。
+        - 通过Web上传.bin文件，重启。
+        ## 注意
+        第三方固件，自行风险。支持: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+        EOF
+
+    - name: 生成发布描述
+      id: tag
+      if: env.UPLOAD_RELEASE == 'true' && steps.version.outputs.status == 'success'
+      run: |
+        set -e
+        echo "RELEASE_TAG=ImmortalWrt-24.10-${{ env.device_code }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
+        cat << EOF > release.txt
+        # ImmortalWrt 固件发布
+        - **版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
+        - **型号**: ${{ env.device_code }}
+        - **时间**: $(date +"%Y-%m-%d %H:%M %Z")
+        - **5G**: ${{ env.ENABLE_5G_25DB == 'true' && '已启用' || '未启用' }}
+        ## 特性
+        - 优化性能，支持USB/HNAT/Ksmbd。
+        ${{ env.ENABLE_5G_25DB == 'true' && '- 5G 25dB 高功率。' || '' }}
+        - 地址: 192.168.10.1 (空密码)
+        ## 安装
+        备份 > 上传sysupgrade/factory > 重启。
+        详情见README.md。仓库: https://github.com/padavanonly/immortalwrt-mt798x-24.10
+        EOF
+        echo "status=success" >> $GITHUB_OUTPUT
+        max_frequency=$(($(grep -oP "max-frequency = <\K[0-9]*" openwrt/target/linux/mediatek/files-5.4/arch/arm64/boot/dts/mediatek/mt7981-cmcc-rax3000m-emmc.dts) / 1000000))
+        echo "- 使用闪存频率: ${max_frequency}MHz" >> release.txt
+        release_tag=$(date +"%Y.%m.%d-mt7981-cmcc_rax3000z-emmc-${wlan_luci_interface}-${eeprom_status}-${max_frequency}MHz")
+        echo "release_tag=${release_tag}" >> $GITHUB_OUTPUT
+        echo "status=success" >> $GITHUB_OUTPUT
+
+    - name: 上传固件发布
+      uses: softprops/action-gh-release@v1
+      if: steps.tag.outputs.status == 'success' && !cancelled()
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ steps.tag.outputs.release_tag }}
+        body_path: release.txt
+        files: ${{ env.FIRMWARE }}/*
+
+    - name: 删除旧发布的固件
+      uses: dev-drprasad/delete-older-releases@v0.2.1
+      if: steps.compile.outputs.status == 'success' && env.UPLOAD_RELEASE == 'true' && !cancelled()
+      with:
+        keep_latest: 7
+        delete_tags: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: 删除过时工作流程
+      uses: Mattraks/delete-workflow-runs@v2
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        repository: ${{ github.repository }}
+        retain_days: 1
+        keep_minimum_runs: 3

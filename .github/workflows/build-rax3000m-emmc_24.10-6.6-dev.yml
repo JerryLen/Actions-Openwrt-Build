@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build rax3000-emmc-24.10-6.6-dev
+name: Build rax3000m-emmc_24.10-6.6-dev
 
 permissions: write-all
 # 开启写权限，防止无法上传到release
@@ -48,7 +48,7 @@ env:
   ENV_SH: scripts/environment.sh
   DIY_P1_SH: scripts/diy-part1.sh
   DIY_P2_SH: scripts/diy-part2.sh
-  CONFIG_FILE: configs/rax3000-emmc_24.10-6.6-dev.config
+  CONFIG_FILE: configs/rax3000m-emmc_24.10-6.6-dev.config
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true

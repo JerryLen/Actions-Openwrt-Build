@@ -150,7 +150,7 @@ jobs:
     - name: 设置 26MHz 闪存频率
       if: env.USE_26MHZ == 'true'
       run: |
-        sed -i 's/cap-mmc-highspeed;//g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
+        sed -i 's/cap-mmc-highspeed;/''/g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
         sed -i 's/52000000/26000000/g' openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
         grep max-frequency openwrt/target/linux/mediatek/dts/mt7981b-cmcc-rax3000m-emmc-mtk.dts
 
@@ -179,15 +179,27 @@ jobs:
       run: df -hT
 
 
-    - if: failure()
+    - name: 打包编译日志
+      if: failure()
+      run: |
+        # 在 openwrt 目录下创建一个临时文件夹存放日志
+        mkdir -p debug_logs
+        # 复制日志
+        cp -r openwrt/logs debug_logs/ 2>/dev/null || true
+        cp openwrt/*.log debug_logs/ 2>/dev/null || true
+        cp -r openwrt/build_dir/**/* 2>/dev/null || true
+        
+        # 打包
+        tar -czf debug_logs.tar.gz debug_logs
+
+    - name: 上传日志
+      if: failure()
       uses: actions/upload-artifact@v4
       with:
         name: compile-log-${{ env.DEVICE_CODE }}
-        path: |
-          openwrt/build_dir/**/*
-          openwrt/logs/**/*
-          openwrt/*.log
+        path: debug_logs.tar.gz
         if-no-files-found: ignore
+
 
     - name: 提取版本号
       id: version

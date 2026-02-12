@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build xr30-emmc_padavanonly-24.10-6.6
+name: Build rax3000-emmc-24.10-6.6-dev
 
 permissions: write-all
 # 开启写权限，防止无法上传到release
@@ -38,8 +38,8 @@ on:
         default: false
         type: boolean
 
-  schedule:
-    - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
+  # schedule:
+  #   - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
 
 env:
   REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/padavanonly/immortalwrt-mt798x-6.6' }}
@@ -48,7 +48,7 @@ env:
   ENV_SH: scripts/environment.sh
   DIY_P1_SH: scripts/diy-part1.sh
   DIY_P2_SH: scripts/diy-part2.sh
-  CONFIG_FILE: configs/xr30-emmc-padavanonly-24.10-6.6.config
+  CONFIG_FILE: configs/rax3000-emmc_24.10-6.6-dev.config
   UPLOAD_BIN_DIR: false
   UPLOAD_FIRMWARE: true
   UPLOAD_RELEASE: true
@@ -252,7 +252,7 @@ jobs:
       if: env.UPLOAD_RELEASE == 'true' && steps.version.outputs.status == 'success'
       run: |
         set -e
-        echo "RELEASE_TAG=ImmortalWrt-24.10-${{ env.DEVICE_CODE }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
+        echo "RELEASE_TAG=测试 ImmortalWrt-24.10-${{ env.DEVICE_CODE }}-${{ env.FIRMWARE_VERSION }}" >> $GITHUB_OUTPUT
         cat << EOF > release.txt
         # ImmortalWrt 固件发布
         - **版本**: ImmortalWrt ${{ env.FIRMWARE_VERSION }}
@@ -291,7 +291,7 @@ jobs:
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
-        gh release list --repo ${{ github.repository }} --limit 20 --json tagName --jq ".[] | select(.tagName | startswith(\"ImmortalWrt-24.10-${{ env.DEVICE_CODE }}\")) | .tagName" | tail -n +4 | xargs -I {} -r gh release delete {} --yes || true
+        gh release list --repo ${{ github.repository }} --limit 20 --json tagName --jq ".[] | select(.tagName | startswith(\"测试 ImmortalWrt-24.10-${{ env.DEVICE_CODE }}\")) | .tagName" | tail -n +4 | xargs -I {} -r gh release delete {} --yes || true
 
 
     - name: 删除过时工作流程

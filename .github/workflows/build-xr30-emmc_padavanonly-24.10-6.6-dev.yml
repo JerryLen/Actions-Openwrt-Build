@@ -8,7 +8,7 @@
 # Description: Build OpenWrt using GitHub Actions
 #
 
-name: Build xr30-emmc_padavanonly-24.10-6.6
+name: Build xr30-emmc_padavanonly-24.10-6.6-dev
 
 permissions: write-all
 # 开启写权限，防止无法上传到release
@@ -38,8 +38,8 @@ on:
         default: false
         type: boolean
 
-  schedule:
-    - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
+  # schedule:
+  #   - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
 
 env:
   REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/padavanonly/immortalwrt-mt798x-6.6' }}

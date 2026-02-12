@@ -187,7 +187,7 @@ jobs:
         # 复制日志
         cp -r openwrt/logs debug_logs/ 2>/dev/null || true
         cp openwrt/*.log debug_logs/ 2>/dev/null || true
-        cp -r openwrt/build_dir/**/* 2>/dev/null || true
+        # cp -r openwrt/build_dir/**/* 2>/dev/null || true
         
         # 打包
         tar -czf debug_logs.tar.gz debug_logs

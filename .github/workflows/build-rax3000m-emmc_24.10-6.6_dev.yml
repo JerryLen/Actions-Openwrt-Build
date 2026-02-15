@@ -170,35 +170,40 @@ jobs:
       run: |
         cd openwrt
         echo -e "$(($(nproc)+1)) thread compile"
-        make -j$(($(nproc)+1)) | tee build.log || make -j$(nproc)  | tee build.log || make -j1 V=s | tee build.log
+        time make -j$(($(nproc)+1)) | tee build.log || time make -j$(nproc)  | tee build.log || time make -j1 V=s | tee build.log
         echo "status=success" >> $GITHUB_OUTPUT
 
+    - uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: openwrt/build-log
+        path: openwrt/build.log
 
     - name: 空间使用情况
       if: (!cancelled())
       run: df -hT
 
 
-    - name: 打包编译日志
-      if: failure()
-      run: |
-        # 在 openwrt 目录下创建一个临时文件夹存放日志
-        mkdir -p debug_logs
-        # 复制日志
-        cp -r openwrt/logs debug_logs/ 2>/dev/null || true
-        cp openwrt/*.log debug_logs/ 2>/dev/null || true
-        # cp -r openwrt/build_dir/**/* 2>/dev/null || true
+    # - name: 打包编译日志
+    #   if: failure()
+    #   run: |
+    #     # 在 openwrt 目录下创建一个临时文件夹存放日志
+    #     mkdir -p debug_logs
+    #     # 复制日志
+    #     cp -r openwrt/logs debug_logs/ 2>/dev/null || true
+    #     cp openwrt/*.log debug_logs/ 2>/dev/null || true
+    #     # cp -r openwrt/build_dir/**/* 2>/dev/null || true
         
-        # 打包
-        tar -czf debug_logs.tar.gz debug_logs
+    #     # 打包
+    #     tar -czf debug_logs.tar.gz debug_logs
 
-    - name: 上传日志
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: compile-log-${{ env.DEVICE_CODE }}
-        path: debug_logs.tar.gz
-        if-no-files-found: ignore
+    # - name: 上传日志
+    #   if: failure()
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: compile-log-${{ env.DEVICE_CODE }}
+    #     path: debug_logs.tar.gz
+    #     if-no-files-found: ignore
 
 
     - name: 提取版本号

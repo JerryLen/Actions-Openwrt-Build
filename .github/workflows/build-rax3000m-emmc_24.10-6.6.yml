@@ -38,8 +38,8 @@ on:
         default: false
         type: boolean
 
-  schedule:
-    - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
+  # schedule:
+  #   - cron: '0 7 * * 5'  # 每周五07:00 UTC（北京时间15:00）
 
 env:
   REPO_URL: ${{ github.event.inputs.repo_url || 'https://github.com/padavanonly/immortalwrt-mt798x-6.6' }}
